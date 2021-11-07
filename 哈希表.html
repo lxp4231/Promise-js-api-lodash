@@ -1,0 +1,215 @@
+
+哈希表可以通过理论O（1）的时间进行映射的增删改查
+其关键原理即为：通过映射的key直接计算出该组映射对应该存放在存储空间（数组）的哪个位置
+  当重新用同一个key查找时，程序会计算出与其存入时相同的下标，能够将过滤范围很快缩减到个位数
+因为计算存储位置希望尽量随便的分布，就必然会发生不同的key算出相同的位置，称为哈希冲突
+  一般有三种解决冲突的办法：
+    开放地址法：用计算出的下标按照特定的顺序进行偏移，直到找到空闲的存储位置
+    重新哈希法：换用另一个哈希函数计算出新的存储位置，以此类推
+    链式存储法：在数组的下标位置存储一根链表，在这个链表上存储所有hashKey为这个下标的key
+可以预见，当哈希表存储空间确定，且其中存储的元素越来越多的时候，发生冲突的可能性也越来越高
+当存储空间占用比例（装载因子 load factor）达到一定程度时，需要进行扩容。
+相应的，曾经将容易扩大到过很大的哈希表，在内容被删除时，需要将空间缩小。
+
+所以哈希表是一个典型的用空间换时间的数据结构。
+
+<script>
+  class ListNode {
+    constructor(key, val) {
+      this.key = key
+      this.val = val
+      this.next = null
+    }
+  }
+
+  // obj.xxx = 788 // map.set('xxx', 788)
+  // obj.xxx       // map.get('xxx')
+  // 'xxx' in obj  // map.has('xxx')
+  // delete obj.xx // map.delete('xxx')
+
+  /**
+   * 可以优化的点：
+   *  搬运的时候直接移动链表结点而不是创建新的
+   *  扩容时慢慢搬
+   *  使用平衡树而不是链表来存hashkey相同的元素，以防止所有的元素hashkey相同而导致性能退化为O（n）
+   */
+  class HashMap {
+    constructor() {
+      this._capacity = 16
+      this._size = 0
+      this.elements = new Array(this._capacity).fill(null)
+      this.正在搬运 = false
+      this.elements1 = []
+      this.elements2 = []
+    }
+    rehash() {//扩容或缩容
+      var elements = this.elements // 现在的元素们
+      var l = elements.length
+
+      var loadFactor = this._size / this._capacity
+      if (loadFactor > 0.75) {
+        this._capacity = this._capacity * 2
+      } else {
+        this._capacity = Math.max(this._capacity / 2, 16)
+      }
+
+      this._size = 0
+      this.elements = new Array(this._capacity).fill(null)
+
+      for (var i = 0; i < l; i++) {
+        var head = elements[i]
+        while(head) {
+          this.set(head.key, head.val)
+          head = head.next
+        }
+      }
+    }
+    hashKey(str) {
+      var hash = 13131133
+      var seed = 11313
+      for (var i = 0; i < str.length; i++) {
+        hash = (hash * seed >>> 0) + str.charCodeAt(i)
+      }
+      return hash & (this.elements.length - 1) // 当长度2的幂时，相当于 hash % this.elements.length
+    }
+    set(key, val) {
+      var idx = this.hashKey(key)
+      var head = this.elements[idx]
+
+      while (head) { // 查找有无此key对应的结点
+        if (head.key == key) { // 如果找到就直接替换结点的val
+          head.val = val
+          return this
+        }
+        head = head.next
+      }
+
+      var node = new ListNode(key, val)
+      node.next = this.elements[idx] // 放入这个链表的头部
+      this.elements[idx] = node
+
+      this._size++
+
+      if (this._size / this._capacity > 0.75) {
+        this.rehash() // 扩容
+      }
+
+      return this
+    }
+    get(key) {
+      var idx = this.hashKey(key)
+      var head = this.elements[idx]
+      while (head) {
+        if (head.key == key) {
+          return head.val
+        }
+        head = head.next
+      }
+    }
+    has(key) {
+      var idx = this.hashKey(key)
+      var head = this.elements[idx]
+      while (head) {
+        if (head.key == key) {
+          return true
+        }
+        head = head.next
+      }
+      return false
+    }
+    delete(key) {
+      var idx = this.hashKey(key)
+      var head = this.elements[idx]
+      if (!head) {
+        return false
+      }
+      if (head.key == key) {
+        this.elements[idx] = head.next
+        this._size--
+        if (this._size / this._capacity < 0.3) {
+          this.rehash()
+        }
+        return true
+      }
+      while (head.next) {
+        if (head.next.key == key) {
+          head.next = head.next.next
+          this._size--
+          if (this._size / this._capacity < 0.3) {
+            this.rehash()
+          }
+          return true
+        }
+      }
+      return false
+    }
+    get size() {
+      return this._size
+    }
+    performance() {
+      var nonZero = this.elements.map(it => listLength(it)).filter(it => it)
+      return nonZero.reduce((a,b) => a+b) / nonZero.length
+    }
+  }
+
+
+  function listLength(head) {
+    var c = 0
+    while(head) {
+      head = head.next
+      c++
+    }
+    return c
+  }
+
+
+
+  class HashMap2 {
+    static objectIdPrefix = 'owijfoiwjefoijfo'
+    static objectId = 1
+
+    constructor() {
+      this.map = {}
+      this.list = null // 用来存储无法增加objectId属性的对象
+    }
+
+    set(key, val) {
+      var k
+      if (typeof key == 'string') {
+        k = 'S-' + key
+      } else if (typeof key == 'number') {
+        k = 'N-' + key
+      } else if (typeof key == 'boolean') {
+        k = 'B-' + key
+      } else if (key == null) {
+        k = 'NIL-' + key
+      } else if (typeof key == 'object') {
+        k = key.objectId
+        if (!k) {
+          k = key.objectId = HashMap2.objectIdPrefix + HashMap2.objectId++
+        }
+      }
+
+      this.map[k] = val
+    }
+    get(key) {
+      var k
+      if (typeof key == 'string') {
+        k = 'S-' + key
+      } else if (typeof key == 'number') {
+        k = 'N-' + key
+      } else if (typeof key == 'boolean') {
+        k = 'B-' + key
+      } else if (key == null) {
+        k = 'NIL-' + key
+      } else if (typeof key == 'object') {
+        k = key.objectId
+        if (!k) {
+          k = key.objectId = HashMap2.objectIdPrefix + HashMap2.objectId++
+        }
+      }
+
+      return this.map[k]
+    }
+  }
+</script>
